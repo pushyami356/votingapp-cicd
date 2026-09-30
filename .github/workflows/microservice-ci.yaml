@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     env:
       IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/microservices-demo/${{ inputs.service }}:sha-${{ github.sha }}
 
@@ -46,6 +46,12 @@ jobs:
             --cache-to=type=gha,mode=max \
             -t $IMAGE_NAME \
             ./src/${{ inputs.service }}
+  
+             
+      - name: Gitleaks Installation
+        run: sudo apt install gitleaks -y
+      - name: Gitleaks Code Scan
+        run: gitleaks detect source . -r gitleaks-report.json -f json     
 
       # -------------------
       # Security Scan (before push)

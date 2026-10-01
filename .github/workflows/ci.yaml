@@ -1,0 +1,308 @@
+name: Microservices CI
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read,write
+
+
+# ==========================================================
+# BUILD ALL SERVICES
+# ==========================================================
+
+jobs:
+
+  build:
+    name: Build ${{ matrix.service }}
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        include:
+
+          # -----------------------------------------------
+          # Vote - Python
+          # -----------------------------------------------
+          - service: vote
+            language: python
+
+          # -----------------------------------------------
+          # Worker - .NET
+          # -----------------------------------------------
+          - service: worker
+            language: dotnet
+
+          # -----------------------------------------------
+          # Result - Node.js
+          # -----------------------------------------------
+          - service: result
+            language: node
+
+
+    steps:
+
+      # ====================================================
+      # CHECKOUT
+      # ====================================================
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+
+      # ====================================================
+      # PYTHON - VOTE
+      # ====================================================
+
+      - name: Setup Python
+        if: matrix.language == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+
+      - name: Install Python dependencies
+        if: matrix.language == 'python'
+        working-directory: ${{ matrix.service }}
+        run: |
+
+          python -m pip install --upgrade pip
+
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            echo "No requirements.txt found"
+          fi
+
+
+      - name: Test Python service
+        if: matrix.language == 'python'
+        working-directory: ${{ matrix.service }}
+        run: |
+
+          if [ -d tests ]; then
+            pip install pytest
+            pytest
+          else
+            echo "No Python tests found"
+          fi
+
+
+      # ====================================================
+      # .NET - WORKER
+      # ====================================================
+
+      - name: Setup .NET
+        if: matrix.language == 'dotnet'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+
+      - name: Restore .NET dependencies
+        if: matrix.language == 'dotnet'
+        working-directory: ${{ matrix.service }}
+        run: dotnet restore
+
+
+      - name: Build .NET service
+        if: matrix.language == 'dotnet'
+        working-directory: ${{ matrix.service }}
+        run: dotnet build --configuration Release --no-restore
+
+
+      - name: Test .NET service
+        if: matrix.language == 'dotnet'
+        working-directory: ${{ matrix.service }}
+        run: dotnet test --configuration Release --no-build
+
+
+      # ====================================================
+      # NODE.JS - RESULT
+      # ====================================================
+
+      - name: Setup Node.js
+        if: matrix.language == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: ${{ matrix.service }}/package-lock.json
+
+
+      - name: Install Node.js dependencies
+        if: matrix.language == 'node'
+        working-directory: ${{ matrix.service }}
+        run: npm ci
+
+
+      - name: Build Node.js service
+        if: matrix.language == 'node'
+        working-directory: ${{ matrix.service }}
+        run: |
+
+          if npm run | grep -q "build"; then
+            npm run build
+          else
+            echo "No build script found"
+          fi
+
+
+      - name: Test Node.js service
+        if: matrix.language == 'node'
+        working-directory: ${{ matrix.service }}
+        run: |
+
+          if npm run | grep -q "test"; then
+            npm test -- --passWithNoTests
+          else
+            echo "No test script found"
+          fi
+
+
+  # ========================================================
+  # SONARQUBE
+  # ========================================================
+
+  sonar:
+    name: SonarQube Scan
+
+    needs: build
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+
+  # ========================================================
+  # TRIVY FILESYSTEM SCAN
+  # ========================================================
+
+  trivy-fs:
+    name: Trivy Filesystem Scan
+
+    needs: build
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+
+  # ========================================================
+  # DOCKER BUILD AND PUSH
+  # ========================================================
+
+  docker:
+    name: Docker Build - ${{ matrix.service }}
+
+    needs:
+      - build
+      - sonar
+      - trivy-fs
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        service:
+          - vote
+          - worker
+          - result
+
+
+    steps:
+
+      # ====================================================
+      # CHECKOUT
+      # ====================================================
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+
+      # ====================================================
+      # DOCKER LOGIN
+      # ====================================================
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+
+      # ====================================================
+      # DOCKER BUILD
+      # ====================================================
+
+      - name: Build Docker image
+        run: |
+
+          docker build \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/example-voting-app-${{ matrix.service }}:${{ github.sha }} \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/example-voting-app-${{ matrix.service }}:latest \
+            ${{ matrix.service }}
+
+
+      # ====================================================
+      # TRIVY DOCKER IMAGE SCAN
+      # ====================================================
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/example-voting-app-${{ matrix.service }}:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+
+      # ====================================================
+      # PUSH IMAGE
+      # ====================================================
+
+      - name: Push Docker image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+
+          docker push \
+            ${{ secrets.DOCKERHUB_USERNAME }}/example-voting-app-${{ matrix.service }}:${{ github.sha }}
+
+          docker push \
+            ${{ secrets.DOCKERHUB_USERNAME }}/example-voting-app-${{ matrix.service }}:latest
+```

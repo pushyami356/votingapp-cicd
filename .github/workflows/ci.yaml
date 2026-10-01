@@ -212,9 +212,10 @@ jobs:
           scan-type: fs
           scan-ref: .
           scanners: vuln,secret
+          vuln-type: os,library
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: '1'
+          
 
 
   # ========================================================

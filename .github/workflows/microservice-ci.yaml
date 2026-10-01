@@ -19,10 +19,11 @@ jobs:
       # -------------------
       - name: Checkout code
         uses: actions/checkout@v7
-      - name: Set up dot net 
+      - name: Set up dotnet 7
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: latest
+          cache: true  
       - run: dotnet build <my project>
 
       # -------------------

@@ -24,7 +24,7 @@ jobs:
         with:
           dotnet-version: latest
           cache: true  
-      - run: dotnet build <my project>
+      - run: dotnet build --configuration Release
 
       # -------------------
       # Docker Buildx (cache support)

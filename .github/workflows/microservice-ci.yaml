@@ -18,7 +18,12 @@ jobs:
       # Checkout source
       # -------------------
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+      - name: Set up dot net 
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet build <my project>
 
       # -------------------
       # Docker Buildx (cache support)

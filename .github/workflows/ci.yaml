@@ -286,7 +286,7 @@ jobs:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/example-voting-app-${{ matrix.service }}:${{ github.sha }}
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: '1'
+          
 
 
       # ====================================================

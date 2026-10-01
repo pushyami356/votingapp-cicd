@@ -52,7 +52,7 @@ jobs:
 
     # 🚨 IMPORTANT:
     # Reusable workflows are called at JOB level
-    uses: ./.github/workflows/microservice-ci.yaml
+    uses: ./.github/workflows/ci.yaml
 
     with:
       service: ${{ matrix.service }}

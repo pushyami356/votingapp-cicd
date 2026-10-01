@@ -303,4 +303,7 @@ jobs:
 
           docker push \
             ${{ secrets.DOCKERHUB_USERNAME }}/example-voting-app-${{ matrix.service }}:latest
+          tags: |
+            push356/service:latest
+            push356/service:${{ env.IMAGE_TAG }}  
 

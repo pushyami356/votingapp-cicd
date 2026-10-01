@@ -96,9 +96,7 @@ jobs:
             --cache-to=type=gha,mode=max \
             -t $IMAGE_NAME \
             ./src/${{ inputs.service }}
-  
-             
-          
+            
 
       # -------------------
       # Security Scan (before push)
@@ -124,7 +122,7 @@ jobs:
         with: 
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-north-1
+          aws-region: us-east-1
         
       - name: Verify AWS credentials
         run: |

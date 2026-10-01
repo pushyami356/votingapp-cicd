@@ -83,20 +83,17 @@ jobs:
             echo "No requirements.txt found"
           fi
 
-
-      - name: Test Python service
+      - name: Run Python tests
         if: matrix.language == 'python'
         working-directory: ${{ matrix.service }}
         run: |
-
-          if [ -d tests ]; then
-            pip install pytest
+          if [ -d "tests" ]; then
             pytest
           else
             echo "No Python tests found"
-          fi
+          fi   
 
-
+     
       # ====================================================
       # .NET - WORKER
       # ====================================================
@@ -157,16 +154,19 @@ jobs:
           fi
 
 
-      - name: Test Node.js service
+      - name: Run Node.js tests
         if: matrix.language == 'node'
         working-directory: ${{ matrix.service }}
         run: |
-
-          if npm run | grep -q "test"; then
-            npm test -- --passWithNoTests
+          if node -e "const p=require('./package.json'); process.exit(p.scripts?.test ? 0 : 1)"; then
+            if grep -q 'no test specified' package.json; then
+              echo "No automated tests configured for result service"
+            else
+              npm test
+            fi
           else
             echo "No test script found"
-          fi
+          fi   
 
 
   # ========================================================

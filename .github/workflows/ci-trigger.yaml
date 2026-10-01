@@ -1,0 +1,86 @@
+name: Microservices CI Trigger
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "vote/**"
+      - "worker/**"
+      - "result/**"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "vote/**"
+      - "worker/**"
+      - "result/**"
+
+permissions:
+  contents: read
+
+jobs:
+
+  detect-changes:
+    runs-on: ubuntu-latest
+
+    outputs:
+      vote: ${{ steps.filter.outputs.vote }}
+      worker: ${{ steps.filter.outputs.worker }}
+      result: ${{ steps.filter.outputs.result }}
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check changed services
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            vote:
+              - "vote/**"
+
+            worker:
+              - "worker/**"
+
+            result:
+              - "result/**"
+
+
+  vote-ci:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.vote == 'true'
+
+    uses: ./.github/workflows/ci.yaml
+
+    with:
+      service: vote
+
+    secrets: inherit
+
+
+  worker-ci:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.worker == 'true'
+
+    uses: ./.github/workflows/ci.yaml
+
+    with:
+      service: worker
+
+    secrets: inherit
+
+
+  result-ci:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.result == 'true'
+
+    uses: ./.github/workflows/ci.yaml
+
+    with:
+      service: result
+
+    secrets: inherit

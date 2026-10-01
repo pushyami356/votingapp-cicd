@@ -43,7 +43,7 @@ jobs:
          dotnet-version: '7'
          cache: true
      - name: Unit Test Cases
-       run: dotnet test --no-build --configuration Release
+       run: dotnet test 
 
    build_project:
    runs-on: ubuntu-latest

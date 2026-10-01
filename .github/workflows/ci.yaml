@@ -305,4 +305,4 @@ jobs:
 
           docker push \
             ${{ secrets.DOCKERHUB_USERNAME }}/example-voting-app-${{ matrix.service }}:latest
-```
+

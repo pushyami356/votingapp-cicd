@@ -27,15 +27,15 @@ jobs:
           cache: 'pip' # caching pip dependencies
       - run: pip install -r vote/requirements.txt
 
-result-ci:
-  name: Result-Node.js CI
-  runs-on: self-hosted
-  needs: vote-ci
+  result-ci:
+    name: Result-Node.js CI
+    runs-on: self-hosted
+    needs: vote-ci
 
-  steps:
-    - name: checkout code
-      uses: actions/checkout@v7
-    - name: set up code  
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v7
+      - name: set up code  
       uses: actions/setup-node@v7
       with:
       node-version: 24
@@ -44,20 +44,20 @@ result-ci:
     - run: npm test
 
 
-worker-ci:
-  name: worker-.NET CI
-  runs-on: self-hosted
-  needs: result-ci
+  worker-ci:
+    name: worker-.NET CI
+    runs-on: self-hosted
+    needs: result-ci
 
-  steps:
-    - name: checkout code
-      uses: actions/checkout@v7
-    - name: set up code  
-      uses: actions/setup-dotnet@v6
-      with:
-      concurrency: 
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v7
+      - name: set up code  
+        uses: actions/setup-dotnet@v6
+        with:
+        concurrency: 
         dotnet-version: '7'
-    - run: dotnet build 
+      - run: dotnet build 
 
 
 gitleaks-scan:

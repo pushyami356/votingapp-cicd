@@ -12,20 +12,20 @@ env:
 
 
 jobs:
-vote-ci:
-  name: vote-Python CI
-  runs-on: self-hosted
+  vote-ci:
+    name: vote-Python CI
+    runs-on: self-hosted
 
-  steps:
-    - name: checkout code
-      uses: actions/checkout@v7
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v7
 
-    - name: set up code
-      uses: actions/setup-python@v7
-      with:
-        python-version: '3.13'
-        cache: 'pip' # caching pip dependencies
-    - run: pip install -r vote/requirements.txt
+      - name: set up code
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+          cache: 'pip' # caching pip dependencies
+      - run: pip install -r vote/requirements.txt
 
 result-ci:
   name: Result-Node.js CI

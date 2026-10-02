@@ -1,6 +1,8 @@
-name: vote CI
-on: 
+name: votingapp CI
+on:
   push:
+    branches: [ main ]
+  pull_request:
     branches: [ main ]
 
 permissions:
@@ -9,20 +11,52 @@ env:
   IMAGE_TAG: ${{ github.sha }}
 
 
-jobs: 
-compile:
+jobs:
+vote-ci:
+  name: vote-Python CI
   runs-on: self-hosted
 
   steps:
     - name: checkout code
       uses: actions/checkout@v7
-      
+
     - name: set up code
       uses: actions/setup-python@v7
       with:
         python-version: '3.13'
-        cache: 'pip' # caching pip dependencies 
+        cache: 'pip' # caching pip dependencies
     - run: pip install -r vote/requirements.txt
+
+result-ci:
+  name: Result-Node.js CI
+  runs-on: self-hosted
+  needs: vote-ci
+
+  steps:
+    - name: checkout code
+      uses: actions/checkout@v7
+    - name: set up code  
+      uses: actions/setup-node@v7
+      with:
+      node-version: 24
+      package-manager-cache: false # Disable automatic npm caching if not required
+    - run: npm ci
+    - run: npm test
+
+
+worker-ci:
+  name: worker-.NET CI
+  runs-on: self-hosted
+  needs: result-ci
+
+  steps:
+    - name: checkout code
+      uses: actions/checkout@v7
+    - name: set up code  
+      uses: actions/setup-dotnet@v6
+  with:
+    dotnet-version: '7'
+    - run: dotnet build 
 
 
 gitleaks-scan:
@@ -45,7 +79,7 @@ trivy_fs_scan:
   steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@v0.36.0
       with:
@@ -55,10 +89,10 @@ trivy_fs_scan:
         ignore-unfixed: true
         vuln-type: 'os,library'
         severity: 'CRITICAL,HIGH'
-   
+
 
 sonarqube-scan:
-    
+
   runs-on: self-hosted
   needs: trivy_fs_scan
   steps:
@@ -73,7 +107,7 @@ sonarqube-scan:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
 
-          
+
     - name: SonarQube Quality Gate check
       id: sonarqube-quality-gate-check
       uses: sonarsource/sonarqube-quality-gate-action@master
@@ -81,14 +115,14 @@ sonarqube-scan:
         pollingTimeoutSec: 600
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }} 
+        SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
 
 build_docker_image_and_push:
-  
+
   runs-on: self-hosted
   needs: sonarqube-scan
   steps:
-      
+
     - name: Checkout
       uses: actions/checkout@v6
     - name: Login to Docker Hub
@@ -98,22 +132,50 @@ build_docker_image_and_push:
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v4
-    
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
-    
+
     - name: Build and push
       uses: docker/build-push-action@v7
-      with:
-        context: ./vote
-        file: ./vote/Dockerfile
-        push: true
-        tags: |
-          push356/vote-img:${{ github.sha }}
-          push356/vote-img:latest
+  
+
+    - name: Build Vote image
+      run: |
+        docker build \
+          -t ${{ vars.DOCKERHUB_USERNAME }}/voting-vote:latest \
+          ./vote
+
+    - name: Build Result image
+      run: |
+        docker build \
+          -t ${{ vars.DOCKERHUB_USERNAME }}/voting-result:latest \
+          ./result
+
+    - name: Build Worker image
+      run: |
+        docker build \
+          -t ${{ vars.DOCKERHUB_USERNAME }}/voting-worker:latest \
+          ./worker
+
+    - name: Push Vote image
+      run: |
+        docker push \
+          ${{ vars.DOCKERHUB_USERNAME }}/voting-vote:latest
+
+    - name: Push Result image
+      run: |
+        docker push \
+          ${{ vars.DOCKERHUB_USERNAME }}/voting-result:latest
+
+    - name: Push Worker image
+      run: |
+        docker push \
+          ${{ vars.DOCKERHUB_USERNAME }}/voting-worker:latest
+
 
 trivy_image_scan:
-  
+
   runs-on: self-hosted
   needs: build_docker_image_and_push
   steps:
@@ -122,16 +184,15 @@ trivy_image_scan:
       with:
         scan-type: image
         image-ref: push356/vote-img:${{ github.sha }}
-          
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v5
-      with: 
+      with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
-        
+
     - name: Verify AWS credentials
       run: |
         aws --version
         aws sts get-caller-identity
-    

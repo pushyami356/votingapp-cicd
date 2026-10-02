@@ -54,8 +54,9 @@ worker-ci:
       uses: actions/checkout@v7
     - name: set up code  
       uses: actions/setup-dotnet@v6
-  with:
-    dotnet-version: '7'
+      with:
+      concurrency: 
+        dotnet-version: '7'
     - run: dotnet build 
 
 

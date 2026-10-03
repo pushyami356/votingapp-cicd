@@ -53,12 +53,19 @@ jobs:
     steps:
       - name: checkout code
         uses: actions/checkout@v7
+
       - name: set up code  
         uses: actions/setup-dotnet@v6
         with:
           concurrency: 
           dotnet-version: '7.0.x'
-      - run: dotnet build worker/program.cs
+
+      - name: Restore dependencies
+        run: dotnet restore worker/Worker.csproj
+
+      - name: Build Worker
+        run: dotnet build worker/Worker.csproj --no-restore
+      
 
   gitleaks-scan:
 

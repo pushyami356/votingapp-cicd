@@ -41,8 +41,11 @@ jobs:
       #- name: Check Node.js
        # run: node --version
 
-      #- name: Check npm
-       # run: npm --version
+      - name: Check npm
+        run: |
+          npm --version
+          npm audit
+          npm update
 
       #- name: Install dependencies
        # working-directory: result

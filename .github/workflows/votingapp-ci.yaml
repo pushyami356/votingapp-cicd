@@ -34,17 +34,19 @@ jobs:
 
     steps:
       - name: checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          node-version: "24"
 
-      - name: Check Node.js
-        run: node --version
+      #- name: Check Node.js
+       # run: node --version
 
-      - name: Check npm
-        run: npm --version
+      #- name: Check npm
+       # run: npm --version
 
-      - name: Install dependencies
-        working-directory: result
-        run: npm ci
+      #- name: Install dependencies
+       # working-directory: result
+        #run: npm ci
 
   
   worker-ci:

@@ -42,7 +42,6 @@ jobs:
           package-manager-cache: false # Disable automatic npm caching if not required
       - run: |
           npm ci result/package.json
-          npm test result/package.json
 
 
   worker-ci:

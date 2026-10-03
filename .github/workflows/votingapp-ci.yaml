@@ -54,10 +54,7 @@ jobs:
     needs: result-ci
 
     steps:
-      - name: checkout code
-        uses: actions/checkout@v7
-
-      - name: set up code  
+      - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '7.0.x'

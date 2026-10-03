@@ -43,7 +43,7 @@ jobs:
 
       - name: Check npm
         run: |
-          npm --version
+          
           npm audit
           npm update
 

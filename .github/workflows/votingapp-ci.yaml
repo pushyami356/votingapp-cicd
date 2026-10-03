@@ -49,21 +49,20 @@ jobs:
 
   
   worker-ci:
-    name: worker-.NET CI
-    runs-on: self-hosted
+    name: Worker - Docker Build
     needs: result-ci
+    runs-on: self-hosted
 
     steps:
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: '7.0.x'
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Restore dependencies
-        run: dotnet restore worker/Worker.csproj
+      - name: Check Docker
+        run: docker --version
 
-      - name: Build Worker
-        run: dotnet build worker/Worker.csproj --no-restore
+      - name: Build worker image
+        run: |
+          docker build -t voting-worker:ci ./worker
       
 
   gitleaks-scan:

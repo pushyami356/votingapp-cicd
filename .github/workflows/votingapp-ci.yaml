@@ -40,8 +40,9 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false # Disable automatic npm caching if not required
-      - run: npm ci
-      - run: npm test
+      - run: |
+          npm ci result/package.json
+          npm test result/package.json
 
 
   worker-ci:
@@ -56,143 +57,136 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           concurrency: 
-          dotnet-version: '7'
-      - run: dotnet build 
+          dotnet-version: '7.0.x'
+      - run: dotnet build worker/program.cs
 
   gitleaks-scan:
 
-  runs-on: ubuntu-latest
-  needs: worker-ci
+    runs-on: ubuntu-latest
+    needs: worker-ci
 
-  steps:
-    - name: checkout code  
-      uses: actions/checkout@v6
-    - name: set up code
-      uses: gitleaks/gitleaks-action@v3
-    - name: gitleak scan
-      run:
-        gitleaks detect --source ./vote --exit-code 1
+    steps:
+      - name: checkout code  
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Run Gitleaks scan
+        uses: gitleaks/gitleaks-action@v3
+        env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+  trivy_fs_scan:
+    runs-on: ubuntu-latest
+    needs: gitleaks-scan
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-trivy_fs_scan:
-  runs-on: ubuntu-latest
-  needs: gitleaks-scan
-  steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@v0.36.0
-      with:
-        scan-type: 'fs'
-        format: 'table'
-        exit-code: '1'
-        ignore-unfixed: true
-        vuln-type: 'os,library'
-        severity: 'CRITICAL,HIGH'
-
-
-sonarqube-scan:
-
-  runs-on: self-hosted
-  needs: trivy_fs_scan
-  steps:
-    - name: Checking out
-      uses: actions/checkout@master
-      with:
-        # Disabling shallow clone is recommended for improving relevancy of reporting
-        fetch-depth: 0
-    - name: SonarQube Scan
-      uses: kitabisa/sonarqube-action@v1.2.0
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: 'fs'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
 
 
-    - name: SonarQube Quality Gate check
-      id: sonarqube-quality-gate-check
-      uses: sonarsource/sonarqube-quality-gate-action@master
-      with:
-        pollingTimeoutSec: 600
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+  sonarqube-scan:
 
-build_docker_image_and_push:
+    runs-on: self-hosted
+    needs: trivy_fs_scan
+    steps:
+      - name: Checking out
+        uses: actions/checkout@master
+        with:
+          # Disabling shallow clone is recommended for improving relevancy of reporting
+          fetch-depth: 0
+      - name: SonarQube Scan
+        uses: kitabisa/sonarqube-action@v1.2.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
 
-  runs-on: self-hosted
-  needs: sonarqube-scan
-  steps:
 
-    - name: Checkout
-      uses: actions/checkout@v6
-    - name: Login to Docker Hub
-      uses: docker/login-action@v4
-      with:
-        username: ${{ vars.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v4
+      - name: SonarQube Quality Gate check
+        id: sonarqube-quality-gate-check
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        with:
+          pollingTimeoutSec: 600
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v4
+  build_docker_image_and_push:
 
-    - name: Build and push
-      uses: docker/build-push-action@v7
+    runs-on: self-hosted
+    needs: sonarqube-scan
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+    
+      - name: Build Vote image
+        run: |
+          docker build \
+            -t ${{ vars.DOCKERHUB_USERNAME }}/voting-vote:${{ github.sha }} \
+            ./vote
+
+      - name: Build Result image
+        run: |
+          docker build \
+            -t ${{ vars.DOCKERHUB_USERNAME }}/voting-result:${{ github.sha }} \
+            ./result
+
+      - name: Build Worker image
+        run: |
+          docker build \
+            -t ${{ vars.DOCKERHUB_USERNAME }}/voting-worker:${{ github.sha }} \
+            ./worker
+
+      - name: Push Vote image
+        run: |
+          docker push \
+            ${{ vars.DOCKERHUB_USERNAME }}/voting-vote:${{ github.sha }}
+
+      - name: Push Result image
+        run: |
+          docker push \
+            ${{ vars.DOCKERHUB_USERNAME }}/voting-result:${{ github.sha }}
+
+      - name: Push Worker image
+        run: |
+          docker push \
+            ${{ vars.DOCKERHUB_USERNAME }}/voting-worker:${{ github.sha }}
+
+
+  trivy_image_scan:
   
+    runs-on: self-hosted
+    needs: build_docker_image_and_push
+    steps:
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: push356/vote-img:${{ github.sha }}
 
-    - name: Build Vote image
-      run: |
-        docker build \
-          -t ${{ vars.DOCKERHUB_USERNAME }}/voting-vote:latest \
-          ./vote
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
-    - name: Build Result image
-      run: |
-        docker build \
-          -t ${{ vars.DOCKERHUB_USERNAME }}/voting-result:latest \
-          ./result
-
-    - name: Build Worker image
-      run: |
-        docker build \
-          -t ${{ vars.DOCKERHUB_USERNAME }}/voting-worker:latest \
-          ./worker
-
-    - name: Push Vote image
-      run: |
-        docker push \
-          ${{ vars.DOCKERHUB_USERNAME }}/voting-vote:latest
-
-    - name: Push Result image
-      run: |
-        docker push \
-          ${{ vars.DOCKERHUB_USERNAME }}/voting-result:latest
-
-    - name: Push Worker image
-      run: |
-        docker push \
-          ${{ vars.DOCKERHUB_USERNAME }}/voting-worker:latest
-
-
-trivy_image_scan:
-
-  runs-on: self-hosted
-  needs: build_docker_image_and_push
-  steps:
-    - name: Run Trivy image scan
-      uses: aquasecurity/trivy-action@v0.36.0
-      with:
-        scan-type: image
-        image-ref: push356/vote-img:${{ github.sha }}
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v5
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-
-    - name: Verify AWS credentials
-      run: |
-        aws --version
-        aws sts get-caller-identity
+      - name: Verify AWS credentials
+        run: |
+          aws --version
+          aws sts get-caller-identity

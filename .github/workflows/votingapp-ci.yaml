@@ -14,7 +14,7 @@ env:
 jobs:
   vote-ci:
     name: vote - Python CI
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: checkout code
@@ -29,7 +29,7 @@ jobs:
 
   result-ci:
     name: Result - Node.js CI
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: vote-ci
 
     steps:
@@ -50,7 +50,7 @@ jobs:
   
   worker-ci:
     name: worker-.NET CI
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: result-ci
 
     steps:
@@ -72,7 +72,7 @@ jobs:
 
   gitleaks-scan:
 
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: worker-ci
 
     steps:
@@ -86,7 +86,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
   trivy_fs_scan:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: gitleaks-scan
     steps:
       - name: Checkout code
@@ -105,7 +105,7 @@ jobs:
 
   sonarqube-scan:
 
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: trivy_fs_scan
     steps:
       - name: Checking out
@@ -131,7 +131,7 @@ jobs:
 
   build_docker_image_and_push:
 
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: sonarqube-scan
     steps:
 
@@ -180,7 +180,7 @@ jobs:
 
   trivy_image_scan:
   
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build_docker_image_and_push
     steps:
       - name: Scan Vote

@@ -60,7 +60,6 @@ jobs:
       - name: set up code  
         uses: actions/setup-dotnet@v6
         with:
-          concurrency: 
           dotnet-version: '7.0.x'
 
       - name: Restore dependencies
